@@ -1,4 +1,5 @@
-numpy==1.24.3altair==6.0.0
+numpy==1.24.3
+altair==6.0.0
 anyio==4.12.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
@@ -12,7 +13,8 @@ beautifulsoup4==4.14.3
 bleach==6.3.0
 blinker==1.9.0
 boto3==1.42.36
-botocore==1.42.36python-3.10.16
+botocore==1.42.36
+python-3.10.16
 cachetools==6.2.6
 certifi==2026.1.4
 cffi==2.0.0
@@ -148,5 +150,6 @@ wcwidth==0.2.14
 webcolors==25.10.0
 webencodings==0.5.1
 websocket-client==1.9.0
+
 
 
