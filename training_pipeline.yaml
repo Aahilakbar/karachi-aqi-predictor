@@ -1,0 +1,37 @@
+name: Daily Training Pipeline
+
+on:
+  schedule:
+    # Runs every day at 2:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-training-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env file from secrets
+        run: |
+          echo "OPENWEATHER_KEY=${{ secrets.OPENWEATHER_KEY }}" >> .env
+          echo "LAT=${{ secrets.LAT }}" >> .env
+          echo "LON=${{ secrets.LON }}" >> .env
+          # Add Hopsworks secrets if needed
+          echo "HOPSWORKS_API_KEY=${{ secrets.HOPSWORKS_API_KEY }}" >> .env
+          echo "HOPSWORKS_PROJECT=${{ secrets.HOPSWORKS_PROJECT }}" >> .env
+
+      - name: Run training pipeline
+        run: python src/train.py
