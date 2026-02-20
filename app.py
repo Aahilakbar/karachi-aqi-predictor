@@ -16,18 +16,12 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-# ---------------------------
-# FIX: allow imports from src/
-# ---------------------------
-ROOT = Path(__file__).resolve().parents[1]  # project root
-if str(ROOT) not in sys.path:
+
+ROOT = Path(__file__).resolve().parents[1] 
     sys.path.insert(0, str(ROOT))
 
 from src.config import LAT, LON, OPENWEATHER_KEY
 
-# ---------------------------
-# Page Configuration
-# ---------------------------
 st.set_page_config(
     page_title="Karachi AQI Predictor",
     page_icon="🌫️",
@@ -35,9 +29,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------------------------
-# CSS – fixed Quick Tips
-# ---------------------------
+
 st.markdown(
     """
 <style>
@@ -111,9 +103,10 @@ st.markdown(
 )
 
 # ---------------------------
-# UI Helpers
+# Helper functions for AQI categories and health advice
 # ---------------------------
 def get_aqi_category(aqi):
+    """Return (category_name, css_class, emoji) based on AQI value."""
     if pd.isna(aqi) or aqi is None:
         return "Unknown", "", "❓"
     if aqi <= 50:
@@ -130,6 +123,7 @@ def get_aqi_category(aqi):
         return "Hazardous", "aqi-hazardous", "🚨"
 
 def get_health_advice(aqi):
+    """Return health advisory text based on AQI."""
     if pd.isna(aqi) or aqi is None:
         return "No data available."
     if aqi <= 50:
@@ -145,10 +139,9 @@ def get_health_advice(aqi):
     else:
         return "Emergency conditions. Everyone should avoid outdoor activities."
 
-# ---------------------------
-# Altair theme helpers
-# ---------------------------
+
 def apply_altair_theme(chart):
+    """Apply custom theme to Altair chart (white background, dark text)."""
     return (
         chart.configure(background="white")
         .configure_axis(labelColor="#111827", titleColor="#111827", gridColor="#E5E7EB")
@@ -157,6 +150,10 @@ def apply_altair_theme(chart):
     )
 
 def altair_line_single(df, y_col, title="", height=320):
+    """
+    Create a simple line chart with one variable.
+    Expects DataFrame with timestamp as index or a 'timestamp' column.
+    """
     tmp = df.copy().reset_index()
     if "timestamp" not in tmp.columns:
         tmp = tmp.rename(columns={tmp.columns[0]: "timestamp"})
@@ -181,6 +178,10 @@ def altair_line_single(df, y_col, title="", height=320):
     return apply_altair_theme(chart)
 
 def altair_line_multi(df, cols, title="", height=360, y_title="Value"):
+    """
+    Create a multi-line chart for several variables.
+    Expects DataFrame with timestamp as index or a 'timestamp' column.
+    """
     tmp = df.copy().reset_index()
     if "timestamp" not in tmp.columns:
         tmp = tmp.rename(columns={tmp.columns[0]: "timestamp"})
@@ -211,33 +212,7 @@ def altair_line_multi(df, cols, title="", height=360, y_title="Value"):
     )
     return apply_altair_theme(chart)
 
-def altair_bar_single(df, y_col, title="", height=260):
-    tmp = df.copy().reset_index()
-    if "timestamp" not in tmp.columns:
-        tmp = tmp.rename(columns={tmp.columns[0]: "timestamp"})
-    
-    tmp = tmp.dropna(subset=[y_col])
-    if tmp.empty:
-        return None
 
-    chart = (
-        alt.Chart(tmp)
-        .mark_bar()
-        .encode(
-            x=alt.X("timestamp:T", title="Time"),
-            y=alt.Y(f"{y_col}:Q", title=y_col),
-            tooltip=[
-                alt.Tooltip("timestamp:T", title="Timestamp"),
-                alt.Tooltip(f"{y_col}:Q", title=y_col, format=".2f"),
-            ],
-        )
-        .properties(title=title, height=height)
-    )
-    return apply_altair_theme(chart)
-
-# ---------------------------
-# AQI from PM2.5
-# ---------------------------
 def aqi_from_pm25(pm):
     bps = [
         (0.0, 12.0, 0, 50),
@@ -257,10 +232,11 @@ def aqi_from_pm25(pm):
     return 500 if pm > 500.4 else 0
 
 # ---------------------------
-# Data fetching functions
+# Data fetching functions 
 # ---------------------------
 @st.cache_data(ttl=600)
 def fetch_weather_history(days_back=120):
+    """Fetch historical weather data from Open‑Meteo archive."""
     end_date = datetime.utcnow().date()
     start_date = end_date - timedelta(days=days_back)
 
@@ -283,17 +259,19 @@ def fetch_weather_history(days_back=120):
         }
     ).sort_values("timestamp")
 
-    df["hour"] = df["timestamp"].dt.hour
+]    df["hour"] = df["timestamp"].dt.hour
     df["dow"] = df["timestamp"].dt.dayofweek
     df["month"] = df["timestamp"].dt.month
     df["ts_key"] = (df["timestamp"].astype("int64") // 10**9).astype("int64")
     return df
 
 def _unix(dt: datetime) -> int:
+    """Convert datetime to Unix timestamp (seconds since epoch)."""
     return int(dt.replace(tzinfo=timezone.utc).timestamp())
 
 @st.cache_data(ttl=600)
 def fetch_pollution_history(days_back=120):
+    """Fetch historical pollution data from OpenWeather API."""
     if not OPENWEATHER_KEY:
         raise ValueError("OPENWEATHER_KEY missing in .env")
 
@@ -328,7 +306,7 @@ def fetch_pollution_history(days_back=120):
             )
 
         cur = nxt
-        time.sleep(0.12)
+        time.sleep(0.12) 
 
     df = pd.DataFrame(all_rows).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
     df["aqi"] = df["pm2_5"].apply(aqi_from_pm25)
@@ -336,9 +314,10 @@ def fetch_pollution_history(days_back=120):
     return df
 
 # ---------------------------
-# Feature engineering
+# Feature engineering functions
 # ---------------------------
 def build_hourly_join(df_w, df_p):
+    """Join weather and pollution DataFrames on ts_key, clean timestamps."""
     df = df_w.merge(df_p, on="ts_key", how="inner", suffixes=("_w", "_p"))
     ts_col = "timestamp_w" if "timestamp_w" in df.columns else "timestamp"
     df["timestamp"] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
@@ -354,16 +333,21 @@ def build_hourly_join(df_w, df_p):
     return df
 
 def resample_df(df, freq="6H"):
+    """Resample hourly data to 6‑hour intervals (mean)."""
     df_num = df.resample(freq).mean(numeric_only=True)
+    # Re‑add time features based on new index
     df_num["hour"] = df_num.index.hour
     df_num["dow"] = df_num.index.dayofweek
     df_num["month"] = df_num.index.month
     return df_num.dropna()
 
 def add_lag_roll(df):
+    """
+    Add lag and rolling features for AQI and PM2.5.
+    Also create nonlinear features (sin/cos, temp*humidity, wind²).
+    """
     df = df.copy().sort_index()
-    # 24h / 6h = 4 steps
-    steps_24h = 4
+    steps_24h = 4  
 
     df["pm25_roll24"] = df["pm2_5"].rolling(steps_24h).mean()
     df["aqi_roll24"] = df["aqi"].rolling(steps_24h).mean()
@@ -372,14 +356,15 @@ def add_lag_roll(df):
     df["pm25_lag1"] = df["pm2_5"].shift(1)
     df["pm25_lag24"] = df["pm2_5"].shift(steps_24h)
 
-    # Nonlinear features
     df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
     df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+    # Interaction and non‑linear terms
     df["temp_humidity"] = df["temp"] * df["humidity"]
     df["wind_sq"] = df["wind"] ** 2
 
     return df.dropna()
 
+# Final list of features used by the models
 FEATURES = [
     "temp", "humidity", "wind", "pressure",
     "pm2_5", "pm10", "no2", "so2", "co", "o3",
@@ -391,13 +376,16 @@ FEATURES = [
 ]
 
 # ---------------------------
-# Training with proper validation
+# Model training with three algorithms
 # ---------------------------
 def train_three_models(df):
+    """
+    Train Ridge, Random Forest, and Gradient Boosting on the feature DataFrame.
+    Return results, best model name, trained model objects, and test predictions.
+    """
     X = df[FEATURES].copy()
     y = df["aqi"].copy()
 
-    # Check for constant target
     if y.nunique() <= 1:
         st.warning("⚠️ Target variable (AQI) is constant. Using fallback model.")
         results_df = pd.DataFrame({
@@ -414,7 +402,6 @@ def train_three_models(df):
             trained[name] = (Ridge(alpha=1.0), None)
         return results_df, best_name, trained, preds_table
 
-    # Handle missing values
     if X.isnull().any().any():
         X = X.fillna(X.mean())
     if y.isnull().any():
@@ -425,12 +412,12 @@ def train_three_models(df):
     y_train, y_test = y.iloc[:split], y.iloc[split:]
 
     if len(y_test) == 0:
-        st.warning("⚠️ Test set is empty. Adjusting split.")
+        st.warning("⚠️ Test set is empty. Adjusting split to 50%.")
         split = max(1, int(len(df) * 0.5))
         X_train, X_test = X.iloc[:split], X.iloc[split:]
         y_train, y_test = y.iloc[:split], y.iloc[split:]
 
-    # Models
+    # Define models
     models = {
         "Ridge": Pipeline([
             ("scaler", StandardScaler()),
@@ -465,17 +452,18 @@ def train_three_models(df):
             st.warning(f"⚠️ Model {name} failed: {e}")
             results.append([name, 999.0, 999.0, 0.0])
             preds_table[f"pred_{name}"] = np.nan
-            trained[name] = (Ridge(alpha=1.0), StandardScaler())
+            trained[name] = (Ridge(alpha=1.0), StandardScaler()) 
 
     results_df = pd.DataFrame(results, columns=["Model", "MAE", "RMSE", "R2"]).sort_values("RMSE")
     best_name = results_df.iloc[0]["Model"]
     return results_df, best_name, trained, preds_table
 
 # ---------------------------
-# Weather forecast
+# Weather forecast for future days 
 # ---------------------------
 @st.cache_data(ttl=600)
 def get_weather_forecast(days=3):
+    """Fetch weather forecast from Open‑Meteo for the next `days` days."""
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={LAT}&longitude={LON}"
@@ -500,99 +488,71 @@ def get_weather_forecast(days=3):
     df["month"] = df.index.month
     return df
 
-# ---------------------------
-# Future predictions with 6-hourly intervals
-# ---------------------------
+
 def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, best_name="Ridge", freq="6H"):
     """
-    Generate 6-hourly forecasts for the specified number of days
-    Returns DataFrame with index=timestamps and columns=pred_modelname
+    Generate 6‑hourly forecasts for `forecast_days` using a recursive approach.
+    Returns DataFrame with timestamps and predictions from all models.
     """
     try:
         freq_hours = 6
-        n_steps = forecast_days * 24 // freq_hours  # Should be 12 steps for 3 days
-        
+        n_steps = forecast_days * 24 // freq_hours  
+
         st.info(f"Generating {n_steps} forecast points ({forecast_days} days at {freq_hours}-hour intervals)")
-        
-        # Get weather forecast
-        df_weather_hourly = get_weather_forecast(days=forecast_days + 1)  # Get extra day to ensure coverage
-        
-        # Resample to 6-hourly and ensure we have enough data
+
+        df_weather_hourly = get_weather_forecast(days=forecast_days + 1) 
         df_weather = df_weather_hourly.resample(freq).mean().dropna()
-        
-        # Ensure we have exactly n_steps of forecast data
-        # Start from the next 6-hour mark after the last historical data
+
         last_hist_time = df_hist_resampled.index[-1]
         next_forecast_start = last_hist_time + pd.Timedelta(hours=freq_hours)
-        
-        # Filter weather data to start from the next forecast period
         df_weather = df_weather[df_weather.index >= next_forecast_start]
-        
-        # Take only the first n_steps
+
         if len(df_weather) > n_steps:
             df_weather = df_weather.iloc[:n_steps]
         elif len(df_weather) < n_steps:
-            # If we don't have enough weather data, pad with the last available values
-            st.warning(f"Limited weather forecast data. Using available data and extending with trends.")
+            st.warning("Limited weather forecast data. Using available data and extending with trends.")
             last_rows = df_weather.iloc[-1:].copy()
             while len(df_weather) < n_steps:
                 last_rows.index = last_rows.index + pd.Timedelta(hours=freq_hours)
                 df_weather = pd.concat([df_weather, last_rows])
-        
-        # Add time features
+
         df_weather["hour"] = df_weather.index.hour
         df_weather["dow"] = df_weather.index.dayofweek
         df_weather["month"] = df_weather.index.month
-        
-        # Add engineered features
         df_weather["hour_sin"] = np.sin(2 * np.pi * df_weather["hour"] / 24)
         df_weather["hour_cos"] = np.cos(2 * np.pi * df_weather["hour"] / 24)
         df_weather["temp_humidity"] = df_weather["temp"] * df_weather["humidity"]
         df_weather["wind_sq"] = df_weather["wind"] ** 2
 
-        # Get historical data for lag features
         hist = df_hist_resampled.sort_index().copy()
-        steps_24h = 4  # 4 steps of 6 hours = 24 hours
+        steps_24h = 4  
 
-        # Initialize buffers with historical values
         aqi_buf = deque(hist["aqi"].tail(steps_24h * 2).tolist(), maxlen=steps_24h * 2)
         pm25_buf = deque(hist["pm2_5"].tail(steps_24h * 2).tolist(), maxlen=steps_24h * 2)
 
-        # Use a more sophisticated approach for future pollutant estimates
-        # Based on historical patterns and weather conditions
         rng = np.random.default_rng(42)
-        
-        # Calculate typical pollution patterns by hour from historical data
         hourly_pattern = hist.groupby(hist.index.hour)["pm2_5"].mean().to_dict()
-        
+
         future_pm25 = []
         for i in range(n_steps):
             current_time = df_weather.index[i]
             hour = current_time.hour
-            
-            # Base value from recent trend with hourly pattern
+
             base_pm25 = pm25_buf[-1] if len(pm25_buf) > 0 else 50
-            
-            # Apply hourly pattern
-            hourly_factor = hourly_pattern.get(hour, 1.0) / hourly_pattern.get(12, 1.0)  # Normalize to noon
-            
-            # Weather influence
+            hourly_factor = hourly_pattern.get(hour, 1.0) / hourly_pattern.get(12, 1.0)
+
             temp = df_weather.iloc[i]["temp"]
             humidity = df_weather.iloc[i]["humidity"]
             wind = df_weather.iloc[i]["wind"]
-            
-            # Higher temperatures and lower wind usually increase pollution
+
             weather_factor = 1.0 + (temp - 25) * 0.01 - (wind - 10) * 0.02 + (humidity - 50) * 0.005
-            
-            # Add some randomness for realistic variation
+
             noise = float(rng.normal(1.0, 0.1))
-            
-            # Calculate PM2.5
+
             pm25 = base_pm25 * hourly_factor * weather_factor * noise
-            pm25 = max(5.0, min(pm25, 350.0))  # Clip to reasonable range
+            pm25 = max(5.0, min(pm25, 350.0))
             future_pm25.append(pm25)
 
-        # Update dataframe with estimated pollutants
         df_weather["pm2_5"] = future_pm25
         df_weather["pm10"] = df_weather["pm2_5"] * 1.5
         df_weather["no2"] = df_weather["pm2_5"] * 0.3
@@ -600,19 +560,15 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
         df_weather["co"] = df_weather["pm2_5"] * 0.05
         df_weather["o3"] = df_weather["pm2_5"] * 0.2
 
-        # Initialize prediction storage
         preds_out = {name: [] for name in trained_models.keys()}
         idxs = []
 
-        # Generate predictions step by step
         for i, (ts, row) in enumerate(df_weather.iterrows()):
             row_dict = row.to_dict()
 
-            # Get lag values from buffers
             aqi_vals = list(aqi_buf)[-steps_24h:] if len(aqi_buf) >= steps_24h else [50] * steps_24h
             pm25_vals = list(pm25_buf)[-steps_24h:] if len(pm25_buf) >= steps_24h else [50] * steps_24h
 
-            # Add lag features
             row_dict["pm25_roll24"] = np.mean(pm25_vals)
             row_dict["aqi_roll24"] = np.mean(aqi_vals)
             row_dict["aqi_lag1"] = aqi_vals[-1] if aqi_vals else 50
@@ -620,10 +576,9 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
             row_dict["pm25_lag1"] = pm25_vals[-1] if pm25_vals else 50
             row_dict["pm25_lag24"] = pm25_vals[0] if pm25_vals else 50
 
-            # Create feature DataFrame
             X = pd.DataFrame([row_dict])[FEATURES]
 
-            # Get predictions from all models
+            # Predict with all models
             for name, (m, scaler) in trained_models.items():
                 try:
                     if name == "Ridge" and scaler is not None:
@@ -632,21 +587,19 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
                     else:
                         pred = float(m.predict(X)[0])
                     pred = max(0, min(pred, 500))
-                except Exception as e:
-                    pred = 50.0  # Fallback value
+                except Exception:
+                    pred = 50.0  
                 preds_out[name].append(pred)
 
-            # Update buffers with the best model's prediction for next iterations
             next_aqi = preds_out[best_name][-1]
             aqi_buf.append(next_aqi)
             pm25_buf.append(row_dict["pm2_5"])
             idxs.append(ts)
 
-        # Create output DataFrame
         out = pd.DataFrame(index=pd.DatetimeIndex(idxs))
         for name in trained_models.keys():
             out[f"pred_{name}"] = preds_out[name]
-        
+
         st.success(f"Successfully generated {len(out)} forecast points")
         return out
 
@@ -654,17 +607,25 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
         st.error(f"❌ Forecast generation failed: {e}")
         import traceback
         st.error(traceback.format_exc())
-        
-        # Return empty DataFrame with proper structure
+        # Return a dummy forecast of 12 steps (3 days)
         now = pd.Timestamp.now(tz='UTC')
         start = now.ceil("6H")
-        empty_idx = pd.date_range(start=start, periods=12, freq="6H")  # 12 periods = 3 days
+        empty_idx = pd.date_range(start=start, periods=12, freq="6H")
         out = pd.DataFrame(index=empty_idx)
         for name in trained_models.keys():
             out[f"pred_{name}"] = 50.0
         return out
 
+# ---------------------------
+# Walk-forward backtest 
+# ---------------------------
 def walk_forward_backtest(df, model, start_ratio=0.7):
+    """
+    Perform walk‑forward validation:
+    - Train on first `start_ratio` of data, then predict next point,
+      retrain every 10 steps.
+    Returns MAE, RMSE, R² and DataFrame of actual vs predicted.
+    """
     X = df[FEATURES].copy()
     y = df["aqi"].copy()
 
@@ -709,59 +670,47 @@ def walk_forward_backtest(df, model, start_ratio=0.7):
         st.warning(f"⚠️ Walk-forward backtest failed: {e}")
         return 0.0, 0.0, 0.0, pd.DataFrame()
 
+# ---------------------------
+# Build combined timeline table (history + forecast)
+# ---------------------------
 def build_full_timeline_table(df_hist_resampled, future_pred, best_name, history_steps=12):
     """
-    Build combined timeline of history + forecast
-    history_steps: number of 6-hourly steps to show from history (12 steps = 3 days)
+    Combine last `history_steps` of historical AQI with forecast predictions.
+    Returns a DataFrame with columns: timestamp, type, actual_aqi, pred_*, aqi_category.
     """
     hist = df_hist_resampled.sort_index().copy()
-    
-    # Take the last N steps from history (12 steps = 3 days for 6-hourly data)
     hist_last = hist.tail(history_steps)[["aqi"]].rename(columns={"aqi": "actual_aqi"})
-    
-    # Get forecast data (should be 12 steps for 3 days of 6-hourly data)
+
     fut = future_pred.copy()
-    
-    # Add actual_aqi column (empty for forecast)
     fut["actual_aqi"] = np.nan
-    
-    # Add type labels
+
     hist_last["type"] = "history"
     fut["type"] = "forecast"
-    
-    # Combine history and forecast
+
     out = pd.concat([hist_last, fut], axis=0).sort_index()
     out = out.reset_index().rename(columns={"index": "timestamp"})
     out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True)
-    
-    # Get all prediction columns
+
     pred_cols = [c for c in out.columns if c.startswith("pred_")]
-    
-    # Ensure we have all prediction columns even if they're None in history
     for col in pred_cols:
         out[col] = out[col].apply(lambda x: int(round(x)) if pd.notna(x) and x is not None else None)
-    
-    # Clean up actual_aqi
     out["actual_aqi"] = out["actual_aqi"].apply(lambda x: int(round(x)) if pd.notna(x) else None)
-    
-    # Reorder columns
+
     cols = ["timestamp", "type", "actual_aqi"] + pred_cols
     out = out[cols]
-    
-    # Add AQI category based on available data
+
     out["aqi_category"] = out.apply(
         lambda row: (
-            get_aqi_category(row["actual_aqi"])[0] 
-            if pd.notna(row["actual_aqi"]) 
+            get_aqi_category(row["actual_aqi"])[0]
+            if pd.notna(row["actual_aqi"])
             else (
-                get_aqi_category(row[pred_cols[0]])[0] 
-                if pred_cols and pd.notna(row[pred_cols[0]]) 
+                get_aqi_category(row[pred_cols[0]])[0]
+                if pred_cols and pd.notna(row[pred_cols[0]])
                 else "Unknown"
             )
         ),
         axis=1
     )
-    
     return out
 
 # ---------------------------
@@ -787,11 +736,11 @@ with st.sidebar:
     st.divider()
 
     with st.expander("📊 Data Settings", expanded=True):
-        days_back = st.slider("History (days)", 30, 120, 60, 5)
+        days_back = st.slider("History (days)", 30, 60, 5)
         st.info("Data frequency: 6-Hourly")
         chart_range = st.radio(
             "Show historical chart for:",
-            options=["1 day", "30 days", "60 days", "120 days"],
+            options=["1 day", "30 days", "60 days"],
             index=1,
             horizontal=True,
         )
@@ -805,7 +754,6 @@ with st.sidebar:
 st.markdown("<h1 style='margin-bottom:0;'>🌫️ Karachi Air Quality Index Predictor</h1>", unsafe_allow_html=True)
 st.markdown("Predict AQI using machine learning models with 6-hourly intervals")
 
-# Load data
 progress_bar = st.progress(0)
 status_text = st.empty()
 
@@ -836,7 +784,7 @@ if df_hourly.empty:
     st.error("❌ No data available. Check API key / internet.")
     st.stop()
 
-# Resample to 6-hourly and engineer features
+# Resample to 6‑hourly and add features
 df_used = resample_df(df_hourly, freq="6H")
 df_used = add_lag_roll(df_used)
 
@@ -849,7 +797,7 @@ with st.spinner("Training models..."):
     results_df, best_name, trained, preds_table = train_three_models(df_used)
 
 # ---------------------------
-# Current Status
+# Current Status Section
 # ---------------------------
 st.markdown("<div class='section-header'>📊 Current Status</div>", unsafe_allow_html=True)
 
@@ -900,10 +848,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 24-hour trend (4 points for 6-hourly data)
+# ---------------------------
+# 24-hour trend 
+# ---------------------------
 st.markdown("<div class='section-header'>📈 AQI Trend (Last 24 Hours)</div>", unsafe_allow_html=True)
-df_last_24h = df_hourly.tail(24)[["aqi"]]  # 24 hourly points
-chart = altair_bar_single(df_last_24h, "aqi", title="AQI (Last 24 Hours)", height=260)
+df_last_24h = df_hourly.tail(24)[["aqi"]] 
+chart = altair_line_single(df_last_24h, "aqi", title="AQI (Last 24 Hours)", height=260)
 if chart:
     st.altair_chart(chart, use_container_width=True)
 else:
@@ -918,7 +868,7 @@ if len(df_last_24h) > 1:
     t2.metric("Change", f"{last_aqi-first_aqi:+.0f}", delta=f"From {first_aqi:.0f} to {last_aqi:.0f}")
 
 # ---------------------------
-# Tabs
+# Tabs for Historical Data, Model Performance, and Forecast
 # ---------------------------
 tab1, tab2, tab3 = st.tabs(["📈 Historical Data", "🤖 Model Performance", "🔮 Future Forecast"])
 
@@ -972,25 +922,20 @@ with tab2:
     )
 
     st.write("### 📊 Model Performance Metrics")
-    
     display_df = results_df.copy()
     display_df["MAE"] = display_df["MAE"].round(2)
     display_df["RMSE"] = display_df["RMSE"].round(2)
     display_df["R2"] = display_df["R2"].round(3)
-    
     st.dataframe(display_df, use_container_width=True, height=160)
 
     st.markdown("<div class='section-header'>📊 Test Set Predictions vs Actual</div>", unsafe_allow_html=True)
-    
     if not preds_table.empty:
         preds_table2 = preds_table.set_index("timestamp")
         chart_test_data = preds_table2[["actual_aqi"]].copy()
-
         for model_name in ["Ridge", "Random Forest", "Gradient Boosting"]:
             coln = f"pred_{model_name}"
             if coln in preds_table2.columns:
                 chart_test_data[model_name] = preds_table2[coln]
-
         chart = altair_line_multi(chart_test_data, cols=list(chart_test_data.columns), title="Test Set: Actual vs Models", height=420)
         if chart:
             st.altair_chart(chart, use_container_width=True)
@@ -1042,7 +987,7 @@ with tab3:
 
     if future_6h.empty or len(future_6h) < 12:
         st.warning(f"Expected 12 forecast points but got {len(future_6h)}. Using default values.")
-        # Create default forecast if needed
+        # Create a dummy forecast if generation failed
         now = pd.Timestamp.now(tz='UTC')
         start = now.ceil("6H")
         default_idx = pd.date_range(start=start, periods=12, freq="6H")
@@ -1051,7 +996,6 @@ with tab3:
             future_6h[f"pred_{name}"] = 50.0
 
     best_col = f"pred_{best_name}"
-    
     next_step_aqi = float(future_6h.iloc[0][best_col]) if best_col in future_6h.columns else 50.0
     avg_forecast_aqi = float(future_6h[best_col].mean()) if best_col in future_6h.columns else 50.0
     max_forecast_aqi = float(future_6h[best_col].max()) if best_col in future_6h.columns else 50.0
@@ -1059,7 +1003,6 @@ with tab3:
     next_category, next_class, next_emoji = get_aqi_category(next_step_aqi)
     avg_category, _, _ = get_aqi_category(avg_forecast_aqi)
 
-    # Metrics UI
     f1, f2, f3 = st.columns(3)
     with f1:
         st.markdown(f"""
@@ -1085,37 +1028,22 @@ with tab3:
                 <div style='font-size:16px; color:#991B1B; margin-top:10px;'>Maximum expected</div>
             </div>""", unsafe_allow_html=True)
 
-       # Charts - FIXED VERSION FOR 3-DAY DISPLAY
     st.markdown("<div class='section-header'>📈 6‑Hourly Forecast (Next 3 Days)</div>", unsafe_allow_html=True)
-    
-    # Create a copy for display
     forecast_chart = future_6h.copy()
-    
-    # Rename columns for cleaner display
     forecast_chart.columns = [c.replace("pred_", "") for c in forecast_chart.columns]
-    
-    # Display the number of forecast points
     st.caption(f"Showing {len(forecast_chart)} forecast points (12 points = 3 days of 6-hourly data)")
-    
-    # Create the chart with proper date formatting
+
     chart_data = forecast_chart.reset_index().rename(columns={"index": "timestamp"})
-    
-    # Melt the data for Altair
     melted_data = pd.melt(
-        chart_data, 
-        id_vars=["timestamp"], 
+        chart_data,
+        id_vars=["timestamp"],
         value_vars=list(forecast_chart.columns),
-        var_name="Model", 
+        var_name="Model",
         value_name="AQI"
     )
-    
-    # Create the chart
+
     chart = alt.Chart(melted_data).mark_line(point=True).encode(
-        x=alt.X(
-            "timestamp:T", 
-            title="Date & Time",
-            axis=alt.Axis(format="%b %d %H:%M", labelAngle=-45)
-        ),
+        x=alt.X("timestamp:T", title="Date & Time", axis=alt.Axis(format="%b %d %H:%M", labelAngle=-45)),
         y=alt.Y("AQI:Q", title="AQI", scale=alt.Scale(domain=[0, 200])),
         color=alt.Color("Model:N", title="Model"),
         tooltip=[
@@ -1123,34 +1051,20 @@ with tab3:
             alt.Tooltip("Model:N"),
             alt.Tooltip("AQI:Q", format=".0f")
         ]
-    ).properties(
-        title="6‑Hourly Forecast for Next 3 Days",
-        height=420
-    ).configure_axis(
-        labelFontSize=11,
-        titleFontSize=12
-    ).configure_legend(
-        titleFontSize=12,
-        labelFontSize=11
-    )
-    
-    # Apply theme
+    ).properties(title="6‑Hourly Forecast for Next 3 Days", height=420).configure_axis(
+        labelFontSize=11, titleFontSize=12
+    ).configure_legend(titleFontSize=12, labelFontSize=11)
+
     chart = apply_altair_theme(chart)
-    
     st.altair_chart(chart, use_container_width=True)
-    
-    # Display the raw data for verification
+
     with st.expander("View Forecast Data"):
         st.dataframe(forecast_chart)
 
-    # Timeline Table
     st.markdown("<div class='section-header'>📋 Detailed Timeline (3 days history + 3 days forecast)</div>", unsafe_allow_html=True)
-    
-    # 3 days of 6-hourly history = 12 steps (24/6 * 3)
     combined = build_full_timeline_table(df_used, future_6h, best_name, history_steps=12)
     st.dataframe(combined, use_container_width=True, height=420)
 
-    # Download Buttons
     d1, d2 = st.columns(2)
     with d1:
         st.download_button("📥 Download Timeline (CSV)", data=combined.to_csv(index=False), file_name=f"aqi_timeline_{datetime.utcnow().strftime('%Y%m%d')}.csv", mime="text/csv", use_container_width=True)
