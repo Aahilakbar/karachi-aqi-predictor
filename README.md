@@ -20,7 +20,7 @@ Installation
 Clone the repository
 
 bash
-git clone https://github.com/yourusername/karachi-aqi-predictor.git
+git clone https://github.com/Aahilakbar/karachi-aqi-predictor.git
 cd karachi-aqi-predictor
 Create and activate a virtual environment
 
