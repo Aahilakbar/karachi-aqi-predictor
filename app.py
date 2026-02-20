@@ -18,7 +18,7 @@ from sklearn.pipeline import Pipeline
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))   
+    sys.path.insert(0, str(ROOT))
 
 from src.config import LAT, LON, OPENWEATHER_KEY
 
@@ -157,7 +157,7 @@ def altair_line_single(df, y_col, title="", height=320):
     tmp = df.copy().reset_index()
     if "timestamp" not in tmp.columns:
         tmp = tmp.rename(columns={tmp.columns[0]: "timestamp"})
-    
+
     tmp = tmp.dropna(subset=[y_col])
     if tmp.empty:
         return None
@@ -185,11 +185,11 @@ def altair_line_multi(df, cols, title="", height=360, y_title="Value"):
     tmp = df.copy().reset_index()
     if "timestamp" not in tmp.columns:
         tmp = tmp.rename(columns={tmp.columns[0]: "timestamp"})
-    
+
     valid_cols = [c for c in cols if c in tmp.columns]
     if not valid_cols:
         return None
-    
+
     melted = tmp.melt(id_vars=["timestamp"], value_vars=valid_cols, var_name="series", value_name="value")
     melted = melted.dropna(subset=["value"])
     if melted.empty:
@@ -232,7 +232,7 @@ def aqi_from_pm25(pm):
     return 500 if pm > 500.4 else 0
 
 # ---------------------------
-# Data fetching functions 
+# Data fetching functions
 # ---------------------------
 @st.cache_data(ttl=600)
 def fetch_weather_history(days_back=120):
@@ -259,7 +259,7 @@ def fetch_weather_history(days_back=120):
         }
     ).sort_values("timestamp")
 
-]    df["hour"] = df["timestamp"].dt.hour
+    df["hour"] = df["timestamp"].dt.hour
     df["dow"] = df["timestamp"].dt.dayofweek
     df["month"] = df["timestamp"].dt.month
     df["ts_key"] = (df["timestamp"].astype("int64") // 10**9).astype("int64")
@@ -306,7 +306,7 @@ def fetch_pollution_history(days_back=120):
             )
 
         cur = nxt
-        time.sleep(0.12) 
+        time.sleep(0.12)
 
     df = pd.DataFrame(all_rows).drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
     df["aqi"] = df["pm2_5"].apply(aqi_from_pm25)
@@ -347,7 +347,7 @@ def add_lag_roll(df):
     Also create nonlinear features (sin/cos, temp*humidity, wind²).
     """
     df = df.copy().sort_index()
-    steps_24h = 4  
+    steps_24h = 4
 
     df["pm25_roll24"] = df["pm2_5"].rolling(steps_24h).mean()
     df["aqi_roll24"] = df["aqi"].rolling(steps_24h).mean()
@@ -452,14 +452,14 @@ def train_three_models(df):
             st.warning(f"⚠️ Model {name} failed: {e}")
             results.append([name, 999.0, 999.0, 0.0])
             preds_table[f"pred_{name}"] = np.nan
-            trained[name] = (Ridge(alpha=1.0), StandardScaler()) 
+            trained[name] = (Ridge(alpha=1.0), StandardScaler())
 
     results_df = pd.DataFrame(results, columns=["Model", "MAE", "RMSE", "R2"]).sort_values("RMSE")
     best_name = results_df.iloc[0]["Model"]
     return results_df, best_name, trained, preds_table
 
 # ---------------------------
-# Weather forecast for future days 
+# Weather forecast for future days
 # ---------------------------
 @st.cache_data(ttl=600)
 def get_weather_forecast(days=3):
@@ -496,11 +496,11 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
     """
     try:
         freq_hours = 6
-        n_steps = forecast_days * 24 // freq_hours  
+        n_steps = forecast_days * 24 // freq_hours
 
         st.info(f"Generating {n_steps} forecast points ({forecast_days} days at {freq_hours}-hour intervals)")
 
-        df_weather_hourly = get_weather_forecast(days=forecast_days + 1) 
+        df_weather_hourly = get_weather_forecast(days=forecast_days + 1)
         df_weather = df_weather_hourly.resample(freq).mean().dropna()
 
         last_hist_time = df_hist_resampled.index[-1]
@@ -525,7 +525,7 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
         df_weather["wind_sq"] = df_weather["wind"] ** 2
 
         hist = df_hist_resampled.sort_index().copy()
-        steps_24h = 4  
+        steps_24h = 4
 
         aqi_buf = deque(hist["aqi"].tail(steps_24h * 2).tolist(), maxlen=steps_24h * 2)
         pm25_buf = deque(hist["pm2_5"].tail(steps_24h * 2).tolist(), maxlen=steps_24h * 2)
@@ -588,7 +588,7 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
                         pred = float(m.predict(X)[0])
                     pred = max(0, min(pred, 500))
                 except Exception:
-                    pred = 50.0  
+                    pred = 50.0
                 preds_out[name].append(pred)
 
             next_aqi = preds_out[best_name][-1]
@@ -617,7 +617,7 @@ def future_predictions_6h(df_hist_resampled, trained_models, forecast_days=3, be
         return out
 
 # ---------------------------
-# Walk-forward backtest 
+# Walk-forward backtest
 # ---------------------------
 def walk_forward_backtest(df, model, start_ratio=0.7):
     """
@@ -849,10 +849,10 @@ st.markdown(
 )
 
 # ---------------------------
-# 24-hour trend 
+# 24-hour trend
 # ---------------------------
 st.markdown("<div class='section-header'>📈 AQI Trend (Last 24 Hours)</div>", unsafe_allow_html=True)
-df_last_24h = df_hourly.tail(24)[["aqi"]] 
+df_last_24h = df_hourly.tail(24)[["aqi"]]
 chart = altair_line_single(df_last_24h, "aqi", title="AQI (Last 24 Hours)", height=260)
 if chart:
     st.altair_chart(chart, use_container_width=True)
