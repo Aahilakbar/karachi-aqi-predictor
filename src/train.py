@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from src.config import HOPSWORKS_PROJECT, HOPSWORKS_API_KEY
 
-# Full feature list (must match the columns stored in the feature group)
+# Full feature list 
 FEATURES = [
     "temp", "humidity", "wind", "pressure",
     "pm2_5", "pm10", "no2", "so2", "co", "o3",
@@ -27,8 +27,7 @@ def load_features_from_fs(as_of_date=None):
     fs = project.get_feature_store()
     fg = fs.get_feature_group("aqi_features_6h", version=1)
 
-    # Read all data; you can add filters if needed
-    df = fg.read()
+]    df = fg.read()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.set_index("timestamp").sort_index()
     return df
@@ -82,10 +81,6 @@ def train_three_models(df):
     results_df = pd.DataFrame(results, columns=["Model", "MAE", "RMSE", "R2"]).sort_values("RMSE")
     best_name = results_df.iloc[0]["Model"]
 
-    # Optional: save best model to Hopsworks Model Registry
-    # mr = project.get_model_registry()
-    # model = mr.sklearn.create_model(...)
-    # model.save(trained[best_name][0])
 
     return results_df, best_name, trained, preds_table
 
