@@ -16,9 +16,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-
-ROOT = Path(__file__).resolve().parents[1] 
-    sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))   
 
 from src.config import LAT, LON, OPENWEATHER_KEY
 
